@@ -15,8 +15,11 @@ def check(name, got, want):
         fails.append(name)
 
 
-c = httpx.Client(base_url=BASE, timeout=60)
-anon = httpx.Client(base_url=BASE, timeout=60)
+# The tests only talk to the machine they run on, so they never use the proxy settings from the
+# environment: on a machine whose NO_PROXY lists IPv6 addresses, httpx 0.28.1 cannot even build
+# its client (InvalidURL on the proxy pattern) and the whole file stops before the first check.
+c = httpx.Client(base_url=BASE, timeout=60, trust_env=False)
+anon = httpx.Client(base_url=BASE, timeout=60, trust_env=False)
 r = c.post("/api/auth/signup", json={"email": "zed@example.com", "password": "test-pass-123", "name": "Zed"}, headers=ORIGIN)
 assert r.status_code == 200, r.text
 
@@ -42,7 +45,7 @@ check("second sync says nothing changed", s2, {"v": s1["v"]})
 c.post("/api/creators", json={"name": "Sync Test"}, headers=ORIGIN)
 s3 = c.get("/api/sync", params={"v": s1["v"]}).json()
 check("sync notices a new creator", [x["name"] for x in s3.get("creators", [])], ["Sync Test"])
-check("sync needs a session", anon.__class__(base_url=BASE).get("/api/sync").status_code, 401)
+check("sync needs a session", anon.__class__(base_url=BASE, trust_env=False).get("/api/sync").status_code, 401)
 
 # ---- unverified account: no AI work, no uploads accepted
 check("unverified cannot start a job", c.post("/api/jobs", json={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"}, headers=ORIGIN).status_code, 403)
@@ -66,7 +69,7 @@ check("upload of a non-video refused", c.post("/api/upload", files={"file": ("a.
 check("google callback without the browser's cookie", anon.get("/auth/google/callback", params={"code": "x", "state": "y"}, follow_redirects=False).headers.get("location"), "/login?error=google")
 
 # ---- caching: a browser that already has the current copy gets "not modified", never a stale or shared private page
-fresh = httpx.Client(base_url=BASE, timeout=60)      # a browser nobody has signed in on
+fresh = httpx.Client(base_url=BASE, timeout=60, trust_env=False)      # a browser nobody has signed in on
 for path, who in (("/", fresh), ("/login", fresh), ("/app", c), ("/brand/favicon.svg", anon), ("/assets/ascii.js", anon)):
     r1 = who.get(path)
     tag = r1.headers.get("etag", "")
@@ -75,7 +78,7 @@ for path, who in (("/", fresh), ("/login", fresh), ("/app", c), ("/brand/favicon
     check(f"{path} is sent again when the copy is old", who.get(path, headers={"If-None-Match": '"something-else"'}).status_code, 200)
 check("the signed-in app page is never kept by a shared cache", "private" in c.get("/app").headers.get("cache-control", ""), True)
 check("API answers are never cached", c.get("/api/status").headers.get("cache-control"), "no-store")
-check("not-modified never bypasses sign-in", httpx.Client(base_url=BASE).get("/app", headers={"If-None-Match": c.get("/app").headers.get("etag", "")}, follow_redirects=False).status_code, 303)
+check("not-modified never bypasses sign-in", httpx.Client(base_url=BASE, trust_env=False).get("/app", headers={"If-None-Match": c.get("/app").headers.get("etag", "")}, follow_redirects=False).status_code, 303)
 
 # ---- the visitor address: a header anyone can send must not let them dodge rate limits
 import subprocess  # noqa: E402

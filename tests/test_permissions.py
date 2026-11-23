@@ -18,7 +18,10 @@ def check(name, got, want):
 
 
 def client():
-    return httpx.Client(base_url=BASE, timeout=30, follow_redirects=False)
+    # The tests only talk to the machine they run on, so they never use the proxy settings from the
+    # environment: on a machine whose NO_PROXY lists IPv6 addresses, httpx 0.28.1 cannot even build
+    # its client (InvalidURL on the proxy pattern) and the whole file stops before the first check.
+    return httpx.Client(base_url=BASE, timeout=30, follow_redirects=False, trust_env=False)
 
 
 def signup(email, extra=None):

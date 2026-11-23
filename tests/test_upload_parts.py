@@ -18,7 +18,10 @@ def check(name, ok, extra=""):
 
 
 def user(email):
-    c = httpx.Client(base_url=B, headers={"Origin": B}, timeout=120)
+    # The tests only talk to the machine they run on, so they never use the proxy settings from the
+    # environment: on a machine whose NO_PROXY lists IPv6 addresses, httpx 0.28.1 cannot even build
+    # its client (InvalidURL on the proxy pattern) and the whole file stops before the first check.
+    c = httpx.Client(base_url=B, headers={"Origin": B}, timeout=120, trust_env=False)
     c.post("/api/auth/signup", json={"email": email, "password": "test-pass-123", "name": "U"})
     return c
 
@@ -69,7 +72,8 @@ limit = st["max_upload_mb"] * 1024 * 1024
 check("a file over the limit is refused before anything is sent", a.post("/api/upload/start", json={"name": "x.mp4", "size": limit + 1}).status_code == 413)
 check("a file that is not a video is refused", a.post("/api/upload/start", json={"name": "x.exe", "size": 5000}).status_code == 400)
 check("a made-up size is refused", a.post("/api/upload/start", json={"name": "x.mp4", "size": -4}).status_code == 400)
-check("without signing in nothing can be started", httpx.post(B + "/api/upload/start", json={"name": "x.mp4", "size": 10}, headers={"Origin": B}).status_code == 401)
+anon = httpx.Client(base_url=B, headers={"Origin": B}, trust_env=False)   # nobody signed in: see user() above for why trust_env is off
+check("without signing in nothing can be started", anon.post("/api/upload/start", json={"name": "x.mp4", "size": 10}).status_code == 401)
 big = a.put(f"/api/upload/{'0' * 24}/0", content=b"x" * ((part_mb + 9) * 1024 * 1024), headers=H)
 check("an oversized request to the pieces address is cut off", big.status_code == 413, str(big.status_code))
 c = a.post("/api/upload/start", json={"name": "y.mp4", "size": 1000}).json()
