@@ -132,7 +132,16 @@ def clean_options(options) -> dict:
             continue
         if k in LIMITS:
             lo, hi = LIMITS[k]
-            v = max(lo, min(hi, int(float(v))))
+            # 1e999 is valid JSON and parses to float inf, and a 400-digit integer is valid JSON too: both
+            # used to raise OverflowError here, which no endpoint catches, so the upload answered 500
+            # instead of the intended 400. A number that cannot be counted is refused like any bad value.
+            try:
+                num = float(v)
+            except OverflowError:
+                raise ValueError("That setting isn't a number.")
+            if not math.isfinite(num):
+                raise ValueError("That setting isn't a number.")
+            v = max(lo, min(hi, int(num)))
         elif k == "style":
             v = v if v in render.STYLES else DEFAULTS["style"]
         elif k == "layout":
@@ -140,7 +149,10 @@ def clean_options(options) -> dict:
         elif k == "lang":
             v = v if fetch_model.known(v) else DEFAULTS["lang"]
         else:                                    # range_start, range_end: seconds into the video
-            v = float(v)
+            try:
+                v = float(v)
+            except OverflowError:
+                raise ValueError("That part of the video isn't valid.")
             if not math.isfinite(v) or v < 0:
                 raise ValueError("That part of the video isn't valid.")
         out[k] = v
@@ -379,7 +391,10 @@ def request_render(jid, cid, changes: dict):
         new.update(clean_options({"captions": changes["captions"]}))
     for k in ("start", "end"):
         if k in changes:
-            new[k] = round(float(changes[k]), 2)
+            try:
+                new[k] = round(float(changes[k]), 2)
+            except OverflowError:
+                raise ValueError("Those times aren't valid.")
     if "src_offset" in clip:  # live clip: can only move inside the saved piece of stream
         new["start"] = max(new["start"], clip["src_offset"])
         new["end"] = min(new["end"], clip["src_end"])

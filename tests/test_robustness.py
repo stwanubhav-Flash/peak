@@ -5,7 +5,7 @@ import os, sys, tempfile, threading, time
 os.environ["PEAKCUT_DATA"] = tempfile.mkdtemp(prefix="pc-robust-"); os.environ["DATABASE_URL"] = ""
 sys.path.insert(0, ".")
 import sqlalchemy as sa
-from studio import admin, auth, creators, ctx, db, live, load
+from studio import admin, auth, creators, ctx, db, jobs, live, load
 db.init()
 fails = []
 def check(n, ok, x=""):
@@ -96,6 +96,35 @@ daily = {d["day"]: d for d in admin.overview()["daily"]}
 check("the day totals add up per day", (daily[today]["calls"], daily[today]["tokens"]) == (2, 17) and (daily[yday]["calls"], daily[yday]["tokens"]) == (1, 100)
       and (daily[d3]["calls"], daily[d3]["tokens"]) == (1, 10), str((daily[today], daily[yday], daily[d3])))
 check("a call older than the window is not counted", sum(d["calls"] for d in daily.values()) == 4, str(sum(d["calls"] for d in daily.values())))
+
+# ---------------------------------------------------------------- option values too big to count are refused, not a crash
+# 1e999 is valid JSON and parses to float inf, and a 400-digit integer is valid JSON too. Both used to
+# raise OverflowError inside clean_options / request_render, which no endpoint catches, so the upload
+# and link-submit endpoints answered 500 instead of the intended 400.
+for opts, name in [({"quality": "inf"}, "a quality of inf"), ({"quality": 1e999}, "a quality of 1e999"),
+                   ({"max_clips": 10 ** 400}, "a 400-digit clip count"),
+                   ({"range_start": 10 ** 400}, "a 400-digit start"), ({"range_end": "NaN"}, "a range end of NaN")]:
+    try:
+        jobs.clean_options(opts)
+        ok = False
+    except ValueError:
+        ok = True
+    check(f"{name} is refused with ValueError", ok)
+try:
+    jobs.clean_options({"quality": "abc"})
+    check("a bad word is still refused with ValueError", False)
+except ValueError:
+    check("a bad word is still refused with ValueError", True)
+check("a good value still works, and a big one is clamped to the limit",
+      jobs.clean_options({"quality": 720}) == {"quality": 720} and jobs.clean_options({"quality": 99999}) == {"quality": 1080})
+jobs._jobs["overflow-test"] = {"id": "overflow-test", "clips": [{"id": "c1", "start": 0.0, "end": 30.0}]}
+for changes, name in [({"start": 1e999}, "a start of 1e999"), ({"end": 10 ** 400}, "an end of 10**400")]:
+    try:
+        jobs.request_render("overflow-test", "c1", changes)
+        ok = False
+    except ValueError:
+        ok = True
+    check(f"re-making a clip with {name} is refused with ValueError", ok)
 
 print("ALL PASSED" if not fails else f"{len(fails)} failed")
 sys.exit(1 if fails else 0)
