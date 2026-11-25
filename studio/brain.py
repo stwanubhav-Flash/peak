@@ -1031,7 +1031,7 @@ FIX_SCHEMA = {"type": "ARRAY", "items": {"type": "STRING"}}
 # Languages written in Latin letters keep the words that were said, in their own spelling (the caption fonts draw
 # them); Hindi and Urdu keep theirs too, in Roman letters (Hinglish). Every other language becomes English captions.
 KEEP_LANGS = ("en", "hi", "ur", "es", "pt", "fr", "de", "it", "nl", "pl", "tr", "ro", "sv", "no", "nb", "da", "fi", "cs", "sk", "hu",
-              "id", "ms", "tl", "ca", "hr", "sl", "et", "lv", "lt", "sq", "sw", "af", "eu", "gl", "is", "ga", "cy")
+              "id", "ms", "tl", "ca", "hr", "sl", "et", "lv", "lt", "sq", "sw", "af", "eu", "gl", "is", "ga", "cy", "vi")
 
 
 def needs_translation(lang: str) -> bool:
@@ -1053,7 +1053,7 @@ def _spread(text: str, s: float, e: float) -> list:
 # (in this order on the page). "rom": Hinglish, Urdu or Hindi in Roman letters with English mixed in, the way people
 # type it; "ur" and "hi": Urdu in its own (Nastaliq) script and Hindi in Devanagari.
 CAP_LANGS = {"rom": "Hinglish (Roman Urdu / Hindi)", "en": "English", "ur": "Urdu", "hi": "Hindi", "es": "Spanish",
-             "pt": "Portuguese", "fr": "French", "de": "German", "it": "Italian", "id": "Indonesian", "tr": "Turkish"}
+             "pt": "Portuguese", "fr": "French", "de": "German", "it": "Italian", "id": "Indonesian", "tr": "Turkish", "vi": "Vietnamese"}
 SCRIPT_NOTE = {"rom": " Write it in Roman letters, the way people type Urdu or Hindi in chats (Hinglish), English words "
                       "they mix in staying English; never in Urdu or Devanagari script.",
                "ur": " Write it in Urdu script (as Urdu is written, right to left), never in Roman letters.",

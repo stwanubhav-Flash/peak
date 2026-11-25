@@ -1,5 +1,7 @@
 # Putting PeakCut on a server
 
+**Language:** English · [Tiếng Việt](DEPLOY.vi.md)
+
 PeakCut runs as three containers on one Linux server: the app, PostgreSQL, and Caddy (which handles HTTPS).
 
 ## What you need

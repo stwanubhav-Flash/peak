@@ -1,5 +1,7 @@
 # Gaming mode
 
+**Language:** English · [Tiếng Việt](GAMING.vi.md)
+
 PeakCut was built for talk: it reads a transcript and picks moments from it. A
 gaming stream is mostly not talk — it is a game, a facecam, and a streamer
 reacting. Three changes make it work on those streams.

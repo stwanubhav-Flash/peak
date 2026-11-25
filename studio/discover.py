@@ -23,7 +23,7 @@ NOT_GAMING = {"just chatting", "irl", "special events", "music", "art", "asmr", 
               "fitness & health", "beauty & body art", "dj", "djs", "co-working & studying", "virtual casino",
               "always on", "crypto", "watch parties"}
 LANGS = {"en": "English", "es": "Spanish", "pt": "Portuguese", "de": "German", "fr": "French", "ru": "Russian",
-         "ja": "Japanese", "ko": "Korean", "it": "Italian", "tr": "Turkish", "ar": "Arabic", "hi": "Hindi", "any": "Any language"}
+         "ja": "Japanese", "ko": "Korean", "it": "Italian", "tr": "Turkish", "ar": "Arabic", "hi": "Hindi", "vi": "Vietnamese", "any": "Any language"}
 
 # Famous streamers. Each channel was checked by hand to be the person's own (not a fan or clip account).
 # Platforms are listed with the one they stream on most first; PeakCut watches all of them.
