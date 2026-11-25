@@ -1,6 +1,6 @@
 """The errors people hit on a fresh install: ffmpeg not found ("[WinError 2]"), the speech model not downloaded,
 and an AI model name the service does not know. Runs against the code directly; nothing is downloaded."""
-import io, os, shutil, sys, tarfile, tempfile
+import io, os, shutil, ssl, sys, tarfile, tempfile
 from pathlib import Path
 os.environ["PEAKCUT_DATA"] = tempfile.mkdtemp(prefix="pc-tools-"); os.environ["DATABASE_URL"] = ""
 os.environ.pop("PEAKCUT_MODELS", None)          # this test makes and removes a model: only ever inside its own folder
@@ -57,17 +57,43 @@ def model_bytes():
         t.add(src, arcname=config.ASR_MODEL_NAME)
     return out.getvalue()
 seen = {}
-def fake_open(req, timeout=None):
+def fake_open(req, timeout=None, context=None):
     seen["timeout"] = timeout
+    seen["context"] = context
     return Stream(model_bytes())
 fetch_model.urllib.request.urlopen = fake_open
-fetch_model.ensure()
+class SpyCtx(ssl.SSLContext):
+    def load_verify_locations(self, cafile=None, capath=None, cadata=None):
+        self.loaded = getattr(self, "loaded", []) + [cafile]
+        return super().load_verify_locations(cafile=cafile, capath=capath, cadata=cadata)
+real_ssl_ctx = fetch_model.ssl.create_default_context
+fetch_model.ssl.create_default_context = lambda: SpyCtx(ssl.PROTOCOL_TLS_CLIENT)
+try:
+    fetch_model.ensure()
+finally:
+    fetch_model.ssl.create_default_context = real_ssl_ctx
 check("the model is downloaded by itself and put in place whole", (fetch_model.ready(), sorted(p.name for p in d.iterdir())),
       (True, ["decoder.int8.onnx", "encoder.int8.onnx", "joiner.int8.onnx", "tokens.txt"]))
 check("nothing is left over from the download", sorted(p.name for p in config.MODELS_DIR.iterdir()), [config.ASR_MODEL_NAME])
 check("the download gives up on a silent connection instead of waiting forever", seen["timeout"], lambda t: t is not None and 0 < t <= 120)
+import certifi
+check("the download passes an SSL context with certifi's certificates loaded",
+      (isinstance(seen["context"], ssl.SSLContext), certifi.where() in getattr(seen["context"], "loaded", [])), (True, True))
+fetch_model.ssl.create_default_context = lambda: SpyCtx(ssl.PROTOCOL_TLS_CLIENT)
+prev_certifi = sys.modules.get("certifi")
+sys.modules["certifi"] = None
+try:
+    fallback_ctx = fetch_model._ssl_context()
+finally:
+    fetch_model.ssl.create_default_context = real_ssl_ctx
+    if prev_certifi is None:
+        sys.modules.pop("certifi", None)
+    else:
+        sys.modules["certifi"] = prev_certifi
+check("without certifi, the download falls back to the computer's default SSL context",
+      (isinstance(fallback_ctx, ssl.SSLContext), getattr(fallback_ctx, "loaded", [])), (True, []))
 shutil.rmtree(d)
-def no_internet(req, timeout=None):
+def no_internet(req, timeout=None, context=None):
     raise OSError("getaddrinfo failed")
 fetch_model.urllib.request.urlopen = no_internet
 try:
@@ -77,7 +103,7 @@ except RuntimeError as e:
 check("no internet: said in plain words, and no half model left behind", ("internet" in said, fetch_model.ready(), d.exists()), (True, False, False))
 check("the real reason is shown too, so it can be fixed", "getaddrinfo failed" in said, True)
 check("and so is how to try again by hand", "python -m studio.fetch_model" in said, True)
-fetch_model.urllib.request.urlopen = lambda req, timeout=None: Stream(model_bytes(), stall=True)
+fetch_model.urllib.request.urlopen = lambda req, timeout=None, context=None: Stream(model_bytes(), stall=True)
 try:
     fetch_model.ensure(); said = ""
 except RuntimeError as e:

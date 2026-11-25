@@ -9,6 +9,7 @@ cut off can never leave half a model behind. When a model's fingerprint (SHA-256
 checked against it before anything is unpacked. (python -m studio.fetch_model [language] gets one ahead of time.)"""
 import hashlib
 import shutil
+import ssl
 import sys
 import tarfile
 import threading
@@ -82,10 +83,21 @@ def ensure(lang: str = DEFAULT, start: bool = True) -> None:
             _fetch(lang)
 
 
+def _ssl_context() -> ssl.SSLContext:
+    """Use the computer's own certificates and certifi's bundle too, so HTTPS works even when the system store is missing roots."""
+    ctx = ssl.create_default_context()
+    try:
+        import certifi
+        ctx.load_verify_locations(cafile=certifi.where())
+    except (ImportError, OSError):
+        pass
+    return ctx
+
+
 def _save(lang: str, dest) -> str:
     """Save the archive to dest, giving up if the connection goes quiet for WAIT seconds. Returns its SHA-256."""
     st, digest = state[lang], hashlib.sha256()
-    with urllib.request.urlopen(MODELS[lang][2], timeout=WAIT) as r, open(dest, "wb") as f:
+    with urllib.request.urlopen(MODELS[lang][2], timeout=WAIT, context=_ssl_context()) as r, open(dest, "wb") as f:
         total, got = int(r.headers.get("Content-Length") or 0), 0
         while chunk := r.read(1 << 20):
             f.write(chunk)

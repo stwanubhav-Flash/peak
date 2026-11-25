@@ -61,7 +61,7 @@ class Answer(io.BytesIO):
         self.headers = {"Content-Length": str(len(data))}
 
 
-def fake_open(url, timeout=None):
+def fake_open(url, timeout=None, context=None):
     downloads.append(url)
     lang = next(k for k, m in fetch_model.MODELS.items() if m[2] == url)
     return Answer(ARCHIVES[lang] + (b"changed" if lang in tampered else b""))
